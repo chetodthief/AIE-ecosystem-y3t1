@@ -20,5 +20,42 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin           
+      POSTGRES_PASSWORD: password123 
+      POSTGRES_DB: school_db         
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+  
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    container_name: label_studio
+    restart: unless-stopped
+    ports:
+      - "8080:8080" 
+    depends_on:
+      - postgres    
+    environment:
+      
+      - DJANGO_DB=default
+      - POSTGRE_NAME=school_db
+      - POSTGRE_USER=admin
+      - POSTGRE_PASSWORD=password123
+      - POSTGRE_HOST=postgres_db
+      - POSTGRE_PORT=5432
+      
+      # ตั้งค่าสร้าง User เริ่มต้นสำหรับ Login 
+      - LABEL_STUDIO_USERNAME=admin@example.com
+      - LABEL_STUDIO_PASSWORD=password123
+    volumes:
+      - label-studio-data:/label-studio/data
 volumes:
   redis-data:
+  postgresql-data:
+  label-studio-data:
