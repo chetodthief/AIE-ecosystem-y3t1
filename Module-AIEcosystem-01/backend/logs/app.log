@@ -1,0 +1,5 @@
+[2026-07-26 20:03:28] [INFO] [minio_test.py:32] -  เปิดใช้งาน Versioning สำหรับ 'my-photos' แล้ว
+[2026-07-26 20:03:28] [INFO] [minio_test.py:38] -  อัปโหลด 'profile_pic.jpg' สำเร็จ (Version ID: 95f594e3-aff1-4ad6-8634-329da1f8c4ce)
+[2026-07-26 20:03:28] [INFO] [minio_test.py:38] -  อัปโหลด 'profile_pic.jpg' สำเร็จ (Version ID: 1c69f0a4-80fa-4886-a988-7088e7175997)
+[2026-07-26 20:03:28] [INFO] [minio_test.py:48] -  ดาวน์โหลด 'profile_pic.jpg' (Latest Version) สำเร็จ -> บันทึกที่ downloaded_latest.jpg
+[2026-07-26 20:03:28] [INFO] [minio_test.py:48] -  ดาวน์โหลด 'profile_pic.jpg' (Version: 95f594e3-aff1-4ad6-8634-329da1f8c4ce) สำเร็จ -> บันทึกที่ downloaded_old_version.jpg
