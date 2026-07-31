@@ -1,6 +1,26 @@
-
-config.py
+# Environment & Secret variables
 .env
+.env.*
 
+
+# Python Cache & Virtual Environments
 __pycache__/
+*.py[cod]
+*$py.class
 .venv/
+venv/
+env/
+
+# Database & SQLite files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs & Temporary Files
+*.log
+logs/
+
+# IDE & Editor Files
+.vscode/
+.idea/
+.DS_Store
