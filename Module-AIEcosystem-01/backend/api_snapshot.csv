@@ -1,0 +1,7 @@
+﻿Method,Endpoint Path,Tags / Domain,Summary,Description,Parameters,Response Codes,Operation ID
+POST,/api/v1/auth/register,Authentication,สมัครสมาชิกใหม่ (Sign Up / Register),รับข้อมูลสมัครสมาชิก ตรวจสอบความถูกต้อง เข้ารหัสรหัสผ่าน และสร้างบัญชีผู้ใช้ใหม่ในระบบ,,"201, 422",register_api_v1_auth_register_post
+POST,/api/v1/auth/login,Authentication,เข้าสู่ระบบ (Login / Sign In),ตรวจสอบข้อมูลประจำตัว (Username/Email & Password) และคืนค่า JWT Access Token กับ Refresh Token,,"200, 422",login_api_v1_auth_login_post
+POST,/api/v1/auth/refresh,Authentication,ขอ Access Token ใหม่ด้วย Refresh Token,รับ Refresh Token เพื่อออก Access Token ฉบับใหม่โดยไม่ต้องให้ผู้ใช้กรอก Password ซ้ำ,,"200, 422",refresh_token_api_v1_auth_refresh_post
+GET,/api/v1/auth/me,Authentication,ดูข้อมูลโปรไฟล์ของผู้ใช้งานปัจจุบัน (Current User Profile),ต้องแนบ Header Authorization: Bearer <access_token> เพื่อเรียกดูข้อมูล,,200,get_me_api_v1_auth_me_get
+GET,/,System,Root,,,200,root__get
+GET,/health,System,Health Check,Monitoring API: Health Check Endpoint,,200,health_check_health_get
