@@ -20,6 +20,16 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
 
+    # Redis Configuration
+    redis_host: str = "redis"
+    redis_port: int = 6379
+
+    # MinIO Configuration
+    minio_endpoint: str = "minio:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_secure: bool = False
+
     # ดึงค่าจากไฟล์ .env
     model_config = SettingsConfigDict(
         env_file=".env",
