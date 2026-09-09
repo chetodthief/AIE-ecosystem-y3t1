@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install torch CPU first to avoid downloading full CUDA binaries
+RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
+
 # Copy pyproject.toml and install python requirements for API
 RUN pip install --no-cache-dir \
     "typing-extensions>=4.8.0" \
@@ -16,6 +19,9 @@ RUN pip install --no-cache-dir \
     arq \
     minio \
     datasets \
+    mlflow-skinny==2.11.3 \
+    boto3 \
+    "transformers<4.45.0" \
     pydantic \
     "pydantic[email]" \
     email-validator \

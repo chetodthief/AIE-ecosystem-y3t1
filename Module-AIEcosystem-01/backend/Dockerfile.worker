@@ -19,7 +19,9 @@ RUN pip install --no-cache-dir \
     minio \
     arq \
     pydantic \
-    pydantic-settings
+    pydantic-settings \
+    mlflow-skinny==2.11.3 \
+    boto3
 
 # Copy application source code
 COPY . /app

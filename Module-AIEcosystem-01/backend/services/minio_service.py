@@ -18,6 +18,8 @@ class MinIOService:
             secret_key=settings.minio_secret_key,
             secure=settings.minio_secure
         )
+        for b in ["datasets", "models", "mlflow-artifacts"]:
+            self.ensure_bucket_exists(b)
 
     def ensure_bucket_exists(self, bucket_name: str):
         """ตรวจสอบและสร้าง Bucket หากยังไม่มี"""

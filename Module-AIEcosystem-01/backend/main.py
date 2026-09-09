@@ -9,6 +9,7 @@ from core.config import settings
 from core.database import engine, Base
 from api.v1.auth_router import router as auth_router
 from api.v1.training_router import router as training_router
+from api.v1.inference_router import router as inference_router
 
 # นำเข้า Models เพื่อให้ SQLAlchemy รู้จัก Schema ตารางในการ auto-create
 import models.user  # noqa: F401
@@ -20,18 +21,19 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title=settings.app_name,
     description="""
-    ## AI Ecosystem Authentication & Model Training API Service
+    ## AI Ecosystem Authentication, Model Training & Inference API Service
     ระบบ API พัฒนาตามแนวทาง **Separation of Concerns (SoC)**
-    และ **Layered Architecture** สำหรับจัดการระบบสมาชิก และ **Delayed Training Task Queue**
+    และ **Layered Architecture** สำหรับจัดการระบบสมาชิก, **Delayed Training Task Queue** และ **MLflow Model Inference**
     """,
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# ลงทะเบียน Router โดยแบ่งตาม Domain และ Versioning (/api/v1/auth, /api/v1/training)
+# ลงทะเบียน Router โดยแบ่งตาม Domain และ Versioning (/api/v1/auth, /api/v1/training, /api/v1/inference)
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(training_router, prefix="/api/v1")
+app.include_router(inference_router, prefix="/api/v1")
 
 
 @app.get("/", tags=["System"])

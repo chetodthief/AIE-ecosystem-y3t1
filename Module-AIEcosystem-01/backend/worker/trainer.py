@@ -11,9 +11,11 @@ import io
 import json
 import logging
 import torch
+import mlflow
 from minio import Minio
 from datasets import Dataset, DatasetDict
 from transformers import (
+    pipeline,
     AutoTokenizer,
     AutoModelForTokenClassification,
     TrainingArguments,
@@ -83,6 +85,7 @@ def train_token_classification_model(
     epochs = job_payload.get("epochs", 1)
     batch_size = job_payload.get("batch_size", 8)
     learning_rate = job_payload.get("learning_rate", 5e-5)
+    max_steps = job_payload.get("max_steps", -1)
 
     work_dir = f"/tmp/training_jobs/{job_id}"
     os.makedirs(work_dir, exist_ok=True)
@@ -105,6 +108,9 @@ def train_token_classification_model(
         secret_key=minio_secret_key,
         secure=minio_secure
     )
+    for b in ["datasets", "models", "mlflow-artifacts"]:
+        if not minio_client.bucket_exists(b):
+            minio_client.make_bucket(b)
 
     # 1. Download Dataset from MinIO
     local_data_dir = os.path.join(work_dir, "dataset")
@@ -125,7 +131,10 @@ def train_token_classification_model(
 
     # 3. Tokenizer & Token Alignment (Ref: HF Course Chapter 7)
     logger.info(f"Loading Tokenizer: {model_name}")
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
+    except Exception:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     def tokenize_and_align_labels(examples):
         tokenized_inputs = tokenizer(
@@ -155,23 +164,33 @@ def train_token_classification_model(
 
     # 4. Load Model
     logger.info(f"Loading Model: {model_name} with num_labels={len(label_list)}")
-    model = AutoModelForTokenClassification.from_pretrained(
-        model_name,
-        num_labels=len(label_list),
-        id2label=id2label,
-        label2id=label2id
-    )
+    try:
+        model = AutoModelForTokenClassification.from_pretrained(
+            model_name,
+            num_labels=len(label_list),
+            id2label=id2label,
+            label2id=label2id,
+            local_files_only=True
+        )
+    except Exception:
+        model = AutoModelForTokenClassification.from_pretrained(
+            model_name,
+            num_labels=len(label_list),
+            id2label=id2label,
+            label2id=label2id
+        )
 
     output_model_dir = os.path.join(work_dir, "saved_model")
     training_args = TrainingArguments(
         output_dir=output_model_dir,
         num_train_epochs=epochs,
+        max_steps=max_steps,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         learning_rate=learning_rate,
         eval_strategy="no",
         save_strategy="no",
-        logging_steps=10,
+        logging_steps=5,
         use_cpu=not torch.cuda.is_available()
     )
 
@@ -185,20 +204,67 @@ def train_token_classification_model(
         data_collator=data_collator,
     )
 
-    # 5. Execute Training
+    # 5. MLflow Tracking & Execute Training
+    mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+    print(f"[Trainer Worker] MLflow Tracking Server: {mlflow_uri}", flush=True)
+    mlflow.set_tracking_uri(mlflow_uri)
+    mlflow.set_experiment("Token-Classification-NER")
+
     print(f"[Trainer Worker] Starting Training loop for job {job_id}...", flush=True)
     logger.info("Starting Training loop...")
-    train_result = trainer.train()
-    print(f"[Trainer Worker] Training loop complete! Result: {train_result.metrics}", flush=True)
-    logger.info(f"Training Complete! Metrics: {train_result.metrics}")
-    
-    # Save Model & Tokenizer locally
-    print(f"[Trainer Worker] Saving model locally to {output_model_dir}...", flush=True)
-    trainer.save_model(output_model_dir)
-    tokenizer.save_pretrained(output_model_dir)
-    logger.info(f"Model saved locally at {output_model_dir}")
 
-    # 6. Upload Saved Model & Logs to MinIO
+    if mlflow.active_run():
+        mlflow.end_run()
+
+    with mlflow.start_run(run_name=job_id) as run:
+        mlflow.log_params({
+            "job_id": job_id,
+            "model_name": model_name,
+            "dataset_name": dataset_name,
+            "epochs": epochs,
+            "batch_size": batch_size,
+            "learning_rate": learning_rate
+        })
+
+        train_result = trainer.train()
+        print(f"[Trainer Worker] Training loop complete! Result: {train_result.metrics}", flush=True)
+        logger.info(f"Training Complete! Metrics: {train_result.metrics}")
+        
+        # Log Metrics & Training Log File to MLflow
+        for k, v in train_result.metrics.items():
+            if isinstance(v, (int, float)):
+                mlflow.log_metric(k, float(v))
+
+        # Save Model & Tokenizer locally
+        print(f"[Trainer Worker] Saving model locally to {output_model_dir}...", flush=True)
+        trainer.save_model(output_model_dir)
+        tokenizer.save_pretrained(output_model_dir)
+        logger.info(f"Model saved locally at {output_model_dir}")
+
+        # Log Artifacts & Model to MLflow
+        try:
+            print("[Trainer Worker] Logging training.log and saved_model to MLflow Artifact Store...", flush=True)
+            mlflow.log_artifact(log_file_path, artifact_path="logs")
+            mlflow.log_artifacts(output_model_dir, artifact_path="model_files")
+
+            print("[Trainer Worker] Registering Model in MLflow Model Registry ('Token-Classification-Model')...", flush=True)
+            task_pipeline = pipeline(
+                "token-classification",
+                model=model,
+                tokenizer=tokenizer,
+                aggregation_strategy="simple"
+            )
+            mlflow.transformers.log_model(
+                transformers_model=task_pipeline,
+                artifact_path="model",
+                registered_model_name="Token-Classification-Model",
+                pip_requirements=["transformers", "torch", "datasets"]
+            )
+            print("[Trainer Worker] MLflow Logging & Registration Complete!", flush=True)
+        except Exception as e:
+            print(f"[Trainer Worker] Warning: MLflow log_model failed: {e}", flush=True)
+
+    # 6. Upload Saved Model & Logs to MinIO Bucket
     models_bucket = "models"
     print(f"[Trainer Worker] Connecting to MinIO to upload artifacts to bucket '{models_bucket}'...", flush=True)
     if not minio_client.bucket_exists(models_bucket):
@@ -229,5 +295,6 @@ def train_token_classification_model(
     return {
         "status": "success",
         "job_id": job_id,
+        "mlflow_run_id": run.info.run_id if 'run' in locals() else None,
         "minio_model_path": f"{models_bucket}/{minio_prefix}/"
     }

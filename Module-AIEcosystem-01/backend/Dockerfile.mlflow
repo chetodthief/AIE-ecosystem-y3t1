@@ -1,0 +1,20 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install MLflow and backend/artifact storage drivers
+RUN pip install --no-cache-dir \
+    mlflow==2.11.3 \
+    psycopg2-binary \
+    boto3 \
+    minio
+
+EXPOSE 5000
+
+CMD ["mlflow", "server", "--backend-store-uri", "postgresql://admin:password123@postgres_db:5432/school_db", "--default-artifact-root", "s3://mlflow-artifacts/", "--host", "0.0.0.0", "--port", "5000"]

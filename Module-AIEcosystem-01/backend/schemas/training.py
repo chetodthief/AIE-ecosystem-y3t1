@@ -20,7 +20,8 @@ class TrainEnqueueRequest(BaseModel):
     model_name: str = Field(default="bert-base-uncased", description="Pretrained model identifier")
     dataset_name: str = Field(default="wnut_17", description="Dataset stored in MinIO")
     delay_seconds: int = Field(default=10, description="Delay in seconds before worker starts execution (ETA)")
-    epochs: int = Field(default=3, description="Number of training epochs")
+    epochs: int = Field(default=1, description="Number of training epochs")
+    max_steps: Optional[int] = Field(default=-1, description="Max training steps (-1 for full epochs, e.g. 20 for fast test)")
     batch_size: int = Field(default=16, description="Training batch size per device")
     learning_rate: float = Field(default=5e-5, description="Learning rate")
 

@@ -8,6 +8,7 @@ import os
 import sys
 from arq.connections import RedisSettings
 from worker.trainer import train_token_classification_model
+from worker.inference_worker import run_inference_job
 
 # อ่านการตั้งค่าจาก Environment Variables
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
@@ -40,7 +41,7 @@ async def run_training_job(ctx, job_payload: dict):
     return result
 
 class WorkerSettings:
-    functions = [run_training_job]
+    functions = [run_training_job, run_inference_job]
     redis_settings = RedisSettings(host=REDIS_HOST, port=REDIS_PORT)
-    max_jobs = 2
-    job_timeout = 3600  # 1 hour timeout for training jobs
+    max_jobs = 4
+    job_timeout = 3600  # 1 hour timeout for background jobs

@@ -29,6 +29,7 @@ class TrainingService:
             "model_name": req.model_name,
             "dataset_name": req.dataset_name,
             "epochs": req.epochs,
+            "max_steps": req.max_steps,
             "batch_size": req.batch_size,
             "learning_rate": req.learning_rate,
             "scheduled_at": scheduled_at.isoformat()
