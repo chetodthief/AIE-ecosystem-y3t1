@@ -31,7 +31,13 @@ RUN pip install --no-cache-dir \
     psycopg2-binary \
     sqlalchemy \
     pyjwt \
-    label-studio-sdk
+    label-studio-sdk \
+    "protobuf<5" \
+    prometheus-fastapi-instrumentator \
+    "opentelemetry-api==1.24.0" \
+    "opentelemetry-sdk==1.24.0" \
+    "opentelemetry-instrumentation-fastapi==0.45b0" \
+    "opentelemetry-exporter-otlp==1.24.0"
 
 # Copy application source code
 COPY . /app

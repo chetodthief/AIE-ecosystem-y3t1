@@ -8,6 +8,27 @@ import time
 import mlflow
 from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification
 from schemas.inference import PredictRequest, PredictResponse, EntityResult
+from contextlib import contextmanager
+
+try:
+    from opentelemetry import trace
+    tracer = trace.get_tracer("mlflow_service")
+except Exception:
+    tracer = None
+
+@contextmanager
+def safe_span(name, attributes=None):
+    if tracer:
+        with tracer.start_as_current_span(name) as span:
+            if attributes:
+                for k, v in attributes.items():
+                    span.set_attribute(k, v)
+            yield span
+    else:
+        class DummySpan:
+            def set_attribute(self, *a, **kw): pass
+            def record_exception(self, *a, **kw): pass
+        yield DummySpan()
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
@@ -27,34 +48,37 @@ class MLflowService:
         if model_uri in MODEL_CACHE:
             return MODEL_CACHE[model_uri]
 
-        print(f"[MLflowService] โหลดโมเดลจาก MLflow URI: '{model_uri}'...")
-        try:
-            # โหลดจาก MLflow Artifact Store
-            loaded_pipeline = mlflow.transformers.load_model(model_uri)
-        except Exception as e:
-            print(f"[MLflowService] Warning: ไม่พบโมเดลใน MLflow ({e}) โหลด Default BERT Base Tokenizer & Model...")
-            # Fallback ใช้ Pretrained Bert หากยังไม่มี Model ใน MLflow
-            label_list = ["O", "B-corporation", "I-corporation", "B-creative-work", "I-creative-work", 
-                          "B-group", "I-group", "B-location", "I-location", "B-person", "I-person", "B-product", "I-product"]
-            id2label = {i: label for i, label in enumerate(label_list)}
-            label2id = {label: i for i, label in enumerate(label_list)}
-            
-            tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-            model = AutoModelForTokenClassification.from_pretrained(
-                "bert-base-uncased", num_labels=len(label_list), id2label=id2label, label2id=label2id
-            )
-            loaded_pipeline = pipeline("token-classification", model=model, tokenizer=tokenizer, aggregation_strategy="simple")
+        with safe_span("mlflow.load_model", {"model.uri": model_uri}) as span:
+            print(f"[MLflowService] โหลดโมเดลจาก MLflow URI: '{model_uri}'...")
+            try:
+                # โหลดจาก MLflow Artifact Store
+                loaded_pipeline = mlflow.transformers.load_model(model_uri)
+            except Exception as e:
+                span.record_exception(e)
+                print(f"[MLflowService] Warning: ไม่พบโมเดลใน MLflow ({e}) โหลด Default BERT Base Tokenizer & Model...")
+                # Fallback ใช้ Pretrained Bert หากยังไม่มี Model ใน MLflow
+                label_list = ["O", "B-corporation", "I-corporation", "B-creative-work", "I-creative-work", 
+                              "B-group", "I-group", "B-location", "I-location", "B-person", "I-person", "B-product", "I-product"]
+                id2label = {i: label for i, label in enumerate(label_list)}
+                label2id = {label: i for i, label in enumerate(label_list)}
+                
+                tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+                model = AutoModelForTokenClassification.from_pretrained(
+                    "bert-base-uncased", num_labels=len(label_list), id2label=id2label, label2id=label2id
+                )
+                loaded_pipeline = pipeline("token-classification", model=model, tokenizer=tokenizer, aggregation_strategy="simple")
 
-        MODEL_CACHE[model_uri] = loaded_pipeline
-        return loaded_pipeline
+            MODEL_CACHE[model_uri] = loaded_pipeline
+            return loaded_pipeline
 
     def predict_entities(self, req: PredictRequest) -> PredictResponse:
         """ทำการวิเคราะห์ข้อความเพื่อแท็กหมวดหมู่คำ (Named Entity Recognition)"""
         start_time = time.time()
         model_uri = self.resolve_model_uri(model_name=req.model_name, run_id=req.run_id)
-        
-        nlp_pipeline = self.get_or_load_pipeline(model_uri)
-        predictions = nlp_pipeline(req.text)
+
+        with safe_span("ner.token_classification", {"model.uri": model_uri, "input.text_length": len(req.text)}):
+            nlp_pipeline = self.get_or_load_pipeline(model_uri)
+            predictions = nlp_pipeline(req.text)
 
         entities = []
         for pred in predictions:
